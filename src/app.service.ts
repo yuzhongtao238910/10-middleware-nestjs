@@ -5,8 +5,8 @@ import type { Config } from "./dynamicConfig.module"
 export class AppService {
 
     constructor(
-        @Inject("CONFIG") private readonly config: Config,
-        @Inject("PREFIX") private readonly prefix: string
+        // @Inject("CONFIG") private readonly config: Config,
+        // @Inject("PREFIX") private readonly prefix: string
     ) {}
     getMessage(): string {
         return "this is a message"
@@ -14,8 +14,9 @@ export class AppService {
 
 
     getConfig() {
-        console.log(this.prefix, "prefix")
-        return this.config
+        // console.log(this.prefix, "prefix")
+        // return this.config
+        return "config"
     }
 }
 

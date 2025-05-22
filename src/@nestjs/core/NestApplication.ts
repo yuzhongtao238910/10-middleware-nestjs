@@ -1,9 +1,8 @@
 import express, { Express, Request as ExpressRequest, Response as ExpressResponse, 
     NextFunction  } from "express"
 import path from "path"
-import { INJECTED_TOKENS, DESGIN_PARAMTYPES, defineModule } from "@nestjs/common"
-import { AppModule } from "src/app.module"
-import { CommonModule } from "src/common.module"
+import { INJECTED_TOKENS, DESGIN_PARAMTYPES, defineModule, NestMiddleware, RequestMethod } from "@nestjs/common"
+
 
 export class NestApplication {
 
@@ -26,10 +25,90 @@ export class NestApplication {
     // 记录每个模块之中有哪些provider得token
     private readonly modulesProviders = new Map<any, any>()
 
+    // 记录所有得中间件
+    private readonly middlewares = []
+
     constructor(private readonly module: any) {
+        this.app.use(express.json())
+        this.app.use(express.urlencoded({ extended: true }))
+        // 初始化中间件配置
         
     }
 
+    private initMiddlewares() {
+        // MiddlewareConsumer就是当前得NestApplication的实例
+        this.module.prototype.configure?.(this)
+    }
+
+    apply(...middleware: NestMiddleware[]) {
+        defineModule(this.module, middleware)
+        // 把接收到得中间件放到中间件得数组之中，并且返回当前得实例哈
+        this.middlewares.push(...middleware)
+        return this
+    }
+
+    forRoutes(...routes: Array<string|{path: string, method: RequestMethod}>) {
+        // 把接收到得路由放到路由得数组之中，并且返回当前得实例哈
+
+        // this.routes.push(...routes)
+        // 遍历路径信息
+        for (const route of routes) {
+            // 遍历中间件数组哈
+            for (const middleware of this.middlewares) {
+                // 遍历中间件数组哈
+                // routePath可能是字符串或者是对象
+                // 把route格式化为标准对象哈
+                const {routePath, routeMethod} = this.normalizeTputeInfo(route)
+                this.app.use(routePath, (req, res, next) => {
+                    // 如果配置的方法名字是all或者是请求的方法是一样的
+                    if (routeMethod === RequestMethod.ALL || routeMethod === req.method) {
+                        // 如果方法为ALL，则需要遍历所有的方法
+                        // middleware.use(req, res, next)
+                        // middleware 可能是一个类或者是函数哈
+                        const middlewareInstance = this.getMiddlewareInstance(middleware)
+                        middlewareInstance.use(req, res, next)
+                    } else {
+                        next()
+                    }
+                })
+            }
+        }
+        return this
+    }
+    private getMiddlewareInstance(middleware) {
+        if ( middleware instanceof Function) {
+            // 这块是需要传参数的哈
+            const dependencies = this.resolveDependencies(middleware, this.module)
+            // console.log(dependencies, "dependencies")
+            return new middleware(...dependencies)
+        } 
+        return middleware
+    }
+
+    private normalizeTputeInfo(routeInfo) {
+        // 默认路径哈
+        let routePath = ''
+        // 默认是支持所有得方法得
+        let routeMethod = RequestMethod.ALL
+
+
+        // 另外，传递路径得时候是没有前面的/的
+        // 传递得就是路径
+        if (typeof routeInfo === "string") {
+            routePath = routeInfo
+        } else if ('path' in routeInfo) {
+            // 如果传入的是一个路径对象的话
+            routePath = routeInfo.path
+            routeMethod = routeInfo.method ?? RequestMethod.ALL
+        }
+
+
+        // cats => /cats
+        routePath = path.posix.join("/", routePath)
+
+
+        return {routePath, routeMethod}
+    }
 
     async initProviders() {
         const imports = Reflect.getOwnMetadata("imports", this.module) ?? []
@@ -478,6 +557,7 @@ export class NestApplication {
     async listen(port: number) {
         // 在这块支持异步
         await this.initProviders()
+        await this.initMiddlewares()
         await this.init()
         // 调用express实例的listen方法启动一个express的app服务器，监听port端口
         this.app.listen(port, () => {

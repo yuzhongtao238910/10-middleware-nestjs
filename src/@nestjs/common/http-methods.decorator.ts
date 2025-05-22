@@ -19,3 +19,11 @@ export function Get(path: string = ""): MethodDecorator {
     }
 }
 
+export function Post(path: string = ""): MethodDecorator {
+    return function (target: Object, propertyKey: string | Symbol, descriptor: PropertyDescriptor) {
+        // TODO
+        Reflect.defineMetadata("path", path, descriptor.value)
+        Reflect.defineMetadata("method", "POST", descriptor.value)
+    }
+}
+

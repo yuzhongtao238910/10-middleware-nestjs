@@ -1,47 +1,35 @@
-- exports 导出得可以是模块也可以是提供者
-- imports 导入得只能模块哈
-- 要想使用提供者，必须导入，不导入是不能使用的
-- 当希望提供一组在所有的地方都可以开箱即用的提供者的时候，可以使用@Global装饰器来将模块设置为全局模块
-- @Global() 装饰器使得模块具有全局范围，全局模块只会注册一次，通常由根模块或者是核心模块注册
-- 全局模块不在需要其导入数组之中导入（不过所有模块都全局化不是一个好的设计决策）
+- 中间件
+- 在路由处理器之前来调用函数
+- 中间件函数
+- 默认情况下：express中间件等同于nestjs中间件
+    - 执行任何代码
+    - 对请求和相应修改
+    - 结束请求-相应周期
+    - 调用堆栈之中的下一个中间件函数
+    - 如果当前中间件函数未结束相应周期-则必须调用next将控制权传递给下一个中间件函数
+
+- 通过函数
+- 带有 @Injectable() 装饰器的类来实现自定义 Nest 中间件。类应该实现 NestMiddleware 接口，而函数没有任何特殊要求
+- 添加 @Injectable() 就是能够依赖注入的
+- 依赖注入就需要加入 @Injectable()，否则其实不加也是也可以的
+- middleware之中使用的全局的依赖项是全局的providers嘛？
+    - 先找模块内&再找全局的哈
+
+- 路由通配符
+    - forRoutes({ Spath: "ab*cd", method: RequestMethod.ALL })
+
+- 排除路由
+    - 有时候我们想要排除某些路由不应用中间件，我们可以使用exclude方法清空排除某些路由，此方法可以接受
+    - 单个字符串，多个字符串，或者是标识要排除路由的RouteInfo对象
+```javascript
+consumer
+    .apply(LoggerMiddleware)
+    .exclude(
+        {path: 'cats', method: RequestMethod.GET},
+        {path: "cats", method: RequestMethod.POST},
+        'cats/(.*)'
+    )
+    .forRoutes(CatsController)
 
 
-- 模块的隔离原则
-    - 每一个模块只能够访问自己的providers以及导入的providers，别的模块的providers是不能访问的
-    - 否则就会报错
-
-
-
-- parentModules
-
-- 全局模块
-
-- 动态模块
-    - 轻松创建可以注册和配置提供者的自定义模块，提供者可以自定义的
-    - 动态模块是扩展了，而不是覆盖了之前的元数据
-```typescript
-
-@Module({
-    providers: [Connection],
-    exports: [Connection]
-})
-export class DatabaseModule {
-    static forRoot(entities = [], options?): DynamicModule {
-        const providers = createDatabaseProviders(options, entities)
-
-        return {
-            module: DatabaseModule,
-            providers: providers,
-            exports: providers
-        }
-    }
-}
-
-
-import { DynamicConfigModule } from "./dynamicConfig.module"
-DynamicConfigModule.forRoot()
 ```
-
-- 动态模块的意义：
-    - 1- 传参数
-    - 2- 异步

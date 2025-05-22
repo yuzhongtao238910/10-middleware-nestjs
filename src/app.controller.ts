@@ -1,4 +1,4 @@
-import { Controller, Get, Req, Inject } from "@nestjs/common"
+import { Controller, Get, Req, Inject, Post } from "@nestjs/common"
 import { CoreService } from "./core.service"
 import { CommonService } from "./common.service"
 import { OtherService } from "./other.service"
@@ -65,6 +65,29 @@ export class AppController {
 
     @Get("config")
     getConfig() {
-        return this.appService.getConfig()
+        // return this.appService.getConfig()
+        return "config"
+    }
+
+    @Get("config/a")
+    getConfigA() {
+        // return this.appService.getConfig()
+        return "configA"
+    }
+
+    @Post("config")
+    postConfig() {
+        return "config"
+    }
+
+
+    @Get("abccccde")
+    getAbcde() {
+        return "abcde"
+    }
+
+    @Get("abde")
+    getAbd() {
+        return "abd"
     }
 }
