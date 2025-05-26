@@ -1,9 +1,10 @@
 import express, { Express, Request as ExpressRequest, Response as ExpressResponse, 
     NextFunction  } from "express"
 import path from "path"
-import { INJECTED_TOKENS, DESGIN_PARAMTYPES, defineModule, NestMiddleware, RequestMethod } from "@nestjs/common"
+import { NestMiddleware, RequestMethod } from "@nestjs/common"
 
-
+import { INJECTED_TOKENS, DESGIN_PARAMTYPES } from "../common/constant"
+import { defineModule } from "../common/module.decorator"
 export class NestApplication {
 
 
@@ -26,7 +27,12 @@ export class NestApplication {
     private readonly modulesProviders = new Map<any, any>()
 
     // 记录所有得中间件
+    // 可能是类，可以能是实例，还可能是函数中间件
     private readonly middlewares = []
+
+
+    // 记录需要排除的路径
+    private readonly excludeRoutes = []
 
     constructor(private readonly module: any) {
         this.app.use(express.json())
@@ -40,13 +46,37 @@ export class NestApplication {
         this.module.prototype.configure?.(this)
     }
 
+    use(middleware) {
+        this.app.use(middleware)
+        return this
+    }
+
     apply(...middleware: NestMiddleware[]) {
+        // console.log(middleware, "middleware")
         defineModule(this.module, middleware)
         // 把接收到得中间件放到中间件得数组之中，并且返回当前得实例哈
         this.middlewares.push(...middleware)
         return this
     }
 
+    // 记录需要排除的路径
+    exclude(...routeInfos: Array<string|{path: string, method: RequestMethod}>): this {
+
+        
+
+        this.excludeRoutes.push(...routeInfos.map(this.normalizeTputeInfo))
+
+        return this
+    }
+
+    isExcluded(reqPath: string, method: RequestMethod) {
+        // 遍历要排除的路径，看看个一个排除的路径和当前的请求路径和方法名字匹配哈
+        return this.excludeRoutes.some(routeInfo => {
+            const {routePath, routeMethod} = routeInfo
+
+            return reqPath === routePath && (RequestMethod.ALL === routeMethod || method === routeMethod)
+        })
+    }
     forRoutes(...routes: Array<string|{path: string, method: RequestMethod}>) {
         // 把接收到得路由放到路由得数组之中，并且返回当前得实例哈
 
@@ -60,14 +90,45 @@ export class NestApplication {
                 // 把route格式化为标准对象哈
                 const {routePath, routeMethod} = this.normalizeTputeInfo(route)
                 this.app.use(routePath, (req, res, next) => {
+                    // console.log(routePath, "routePath")
+                    // console.log(req.originalUrl, "req.originalUrl")
+                    // console.log(req.method, "req.method")
+                    // console.log(routeMethod, "routeMethod")
+                    // 如果当前的路径要排除的话，那么就不走当前的中间件了
+                    if (this.isExcluded(req.originalUrl, req.method)) {
+                        next()
+                        return
+                    }
+
+
                     // 如果配置的方法名字是all或者是请求的方法是一样的
                     if (routeMethod === RequestMethod.ALL || routeMethod === req.method) {
-                        // 如果方法为ALL，则需要遍历所有的方法
-                        // middleware.use(req, res, next)
-                        // middleware 可能是一个类或者是函数哈
-                        const middlewareInstance = this.getMiddlewareInstance(middleware)
-                        middlewareInstance.use(req, res, next)
+                        // console.log("匹配")
+
+                        // 此处中间件可能是一个类或者实例或者方法
+                        // 如何区分
+                        // 类的话原型上有use
+                        // 实例的话，自己有一个use
+                        // 函数的话，没有
+
+                        // 原型 | 实例
+                        if ('use' in middleware.prototype || 'use' in middleware) { 
+// if () {}
+                            // 如果方法为ALL，则需要遍历所有的方法
+                            // middleware.use(req, res, next)
+                            // middleware 可能是一个类或者是函数哈
+                            const middlewareInstance = this.getMiddlewareInstance(middleware)
+                            middlewareInstance.use(req, res, next)
+                        } else if (middleware instanceof Function) {
+                            // 函数中间件
+                            middleware(req, res, next)
+                        } else {
+                            next()
+                        }
+
+                        
                     } else {
+                        // console.log("不匹配")
                         next()
                     }
                 })
@@ -77,11 +138,13 @@ export class NestApplication {
     }
     private getMiddlewareInstance(middleware) {
         if ( middleware instanceof Function) {
+            // console.log(middleware, "middleware")
             // 这块是需要传参数的哈
             const dependencies = this.resolveDependencies(middleware, this.module)
             // console.log(dependencies, "dependencies")
             return new middleware(...dependencies)
         } 
+        
         return middleware
     }
 
@@ -100,6 +163,10 @@ export class NestApplication {
             // 如果传入的是一个路径对象的话
             routePath = routeInfo.path
             routeMethod = routeInfo.method ?? RequestMethod.ALL
+        } else if (routeInfo instanceof Function) {
+            // 说明此时是一个控制器哈 先取前缀
+            // 如果routeInfo是一个控制器的话，以他的路径前缀作为路径哈
+            routePath = Reflect.getMetadata("prefix", routeInfo)
         }
 
 

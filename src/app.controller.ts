@@ -3,7 +3,7 @@ import { CoreService } from "./core.service"
 import { CommonService } from "./common.service"
 import { OtherService } from "./other.service"
 import { AppService } from "./app.service"
-@Controller()
+@Controller('app')
 export class AppController {
 
     constructor(
